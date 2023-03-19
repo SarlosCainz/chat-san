@@ -1,0 +1,136 @@
+# Welcome to Serverless!
+#
+# This file is the main config file for your service.
+# It's very minimal at this point and uses default values.
+# You can always add more config options for more control.
+# We've included some commented out config examples here.
+# Just uncomment any of them to get that config option.
+#
+# For full config options, check the docs:
+#    docs.serverless.com
+#
+# Happy Coding!
+
+service: chat-san
+# app and org for use with dashboard.serverless.com
+app: chat-san
+org: sg00167
+
+# You can pin your service to only deploy with a specific Serverless version
+# Check out our docs for more details
+frameworkVersion: '3'
+useDotenv: true
+
+provider:
+  name: aws
+  runtime: python3.9
+  region: ${env:REGION}
+
+# you can overwrite defaults here
+#  stage: dev
+#  region: us-east-1
+
+# you can add statements to the Lambda function's IAM Role here
+  iam:
+    role:
+      statements:
+        - Effect: "Allow"
+          Action:
+            - "dynamodb:GetItem"
+            - "dynamodb:PutItem"
+            - "dynamodb:UpdateItem"
+            - "dynamodb:DeleteItem"
+            - "dynamodb:Query"
+            - "dynamodb:Scan"
+          Resource:
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/Connection"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/Room"
+
+# you can define service wide environment variables here
+#  environment:
+#    variable1: value1
+
+# you can add packaging information here
+package:
+  patterns:
+    - '!Makefile'
+    - '!node_modules'
+    - '!package.json'
+    - '!package-lock.json'
+    - '!poetry.lock'
+    - '!pyproject.toml'
+    - '!pytest.ini'
+    - '!misc/**'
+    - '!ui/**'
+    - '!test/**'
+
+resources:
+  Resources:
+    ConnectionTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
+      Properties:
+        TableName: Connection
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+    RoomTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
+      Properties:
+        TableName: Room
+        AttributeDefinitions:
+          - AttributeName: num
+            AttributeType: N
+        KeySchema:
+          - AttributeName: num
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+functions:
+  api:
+    handler: api.main.handler
+    events:
+      - httpApi:
+          path: "*"
+          method: "*"
+    layers:
+      - { Ref: PythonRequirementsLambdaLayer }
+    timeout: 30
+    environment:
+      TZ: "Asia/Tokyo"
+      REGION: ${REGION}
+      AUTH_CLIENT_ID: ${env:AUTH_CLIENT_ID}
+      AUTH_CLIENT_SECRET: ${env:AUTH_CLIENT_SECRET}
+      AUTH_TOKEN_ENDPOINT: ${env:AUTH_TOKEN_ENDPOINT}
+      AUTH_REVOKE_ENDPOINT: ${env:AUTH_REVOKE_ENDPOINT}
+
+plugins:
+  - serverless-python-requirements
+  - serverless-domain-manager
+
+custom:
+  stage: ${opt:stage, self:provider.stage}
+  basePath:
+    dev: ${env:BASE_PATH_DEV}
+    prd: ${env:BASE_PATH_PRD}
+  customDomain:
+    domainName: api.daigo.sgnet.co.jp
+    stage: ${self:custom.stage}
+    basePath: ${self:custom.basePath.${self:custom.stage}}
+    certificateName: '*.daigo.sgnet.co.jp'
+    createRoute53Record: true
+    endpointType: 'regional'
+    apiType: http
+    securityPolicy: tls_1_2
+  pythonRequirements:
+    dockerizePip: true
+    layer: true
